@@ -1,13 +1,17 @@
+require 'yaml'
+
 class Game
 
   attr_accessor :board, :lost, :r_count
-  def initialize(num_bombs)
-    @new_board = Board.new
+  def initialize(num_bombs, board_size)
+    @new_board = Board.new(board_size)
     @new_board.place_bombs(num_bombs)
     @board = @new_board.board
     @lost = false
     @r_count = 0
     @num_bombs = num_bombs
+    @board_size = board_size
+    @save_time = 0
   end
 
   def move(action, position)
@@ -82,25 +86,35 @@ class Game
   end
 
   def run
-
+    start_time = Time.now
     until game_over?
+      display
+      puts "Choose an action: Flag, unflag, reveal, save"
+      action = gets.chomp
+      if action == "save"
+        @save_time = Time.now - start_time
+        File.open("minesweeper_game.yml", "w") do |f|
+          f.puts self.to_yaml
+        end
+        return
+      end
       puts "Choose a row."
       row = gets.chomp.to_i - 1
       puts "Choose a column."
       column = gets.chomp.to_i - 1
       position = [row, column]
-      puts "Choose an action: Flag, unflag, reveal"
-      action = gets.chomp
 
       move(action, position)
 
-      display
+
     end
+    end_time = Time.now + @save_time
+    display
 
     if won?
       puts "Yay!"
+      puts "It took you #{end_time - start_time} seconds!"
     else
-
       puts "You suck :("
     end
   end
@@ -110,12 +124,18 @@ class Game
   end
 
   def won?
-    @lost == false && @r_count + @num_bombs == 81
+    @lost == false && @r_count + @num_bombs == @board_size ** 2
   end
 
   def lost?
     @lost
   end
+
+  def self.load
+    file = File.read("minesweeper_game.yml")
+    YAML::load(file)
+  end
+
 
 end
 
@@ -135,16 +155,17 @@ end
 
 class Board
 
-  attr_accessor :board
-  def initialize
-    @board = make_board
+  attr_accessor :board, :board_size
+  def initialize(board_size)
+    @board = make_board(board_size)
+    @board_size = board_size
   end
 
   def place_bombs(num)
     positions = []
     while positions.length < num
 
-      random_tile = @board[rand(8)][rand(8)]
+      random_tile = @board[rand(@board_size - 1)][rand(@board_size - 1)]
       positions << random_tile unless positions.include?(random_tile)
     end
 
@@ -154,10 +175,10 @@ class Board
 
   end
 
-  def make_board
-    board = Array.new(9) { [] }
+  def make_board(board_size)
+    board = Array.new(board_size) { [] }
     board.each_with_index do |row, row_number|
-      (0..8).each do |col_number|
+      (0..(board_size - 1)).each do |col_number|
         row << Tile.new([row_number, col_number])
       end
     end
@@ -171,7 +192,7 @@ class Board
     [tile_row - 1, tile_row, tile_row + 1].each do |row|
       [tile_column - 1, tile_column, tile_column + 1].each do |column|
         unless tile_row == row && tile_column == column
-          if row.between?(0, 8) && column.between?(0, 8)
+          if row.between?(0, (@board_size - 1)) && column.between?(0, (@board_size - 1))
             neighbors << @board[row][column]
           end
         end
